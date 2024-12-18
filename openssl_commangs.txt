@@ -1,0 +1,45 @@
+1. Converting .cer/.crt to .pem
+
+openssl x509 -in aps.cer -out apns_cert.pem -inform der
+
+openssl x509 -in server.crt -out server.pem -outform PEM 
+
+2. Creating server private key
+
+openssl genrsa -out server.key 2048
+
+3. create a CSR
+
+openssl req -new -key server.key -out server.csr \
+    -subj "/CN=your.localserver.domain/O=YourOrganization/C=US"
+
+4. Generate a Self signed Certitifcate
+
+openssl x509 -req -days 365 -in server.csr -signkey server.key -out server.crt
+
+
+5. Getting output for pem format file
+
+openssl x509 -in intermediate_cert.pem -text -noout
+
+6. Combining any certificates
+
+Get-Content AppleWWDRCAG4.pem, AppleIncRootCertificate.pem | Set-Content aps_cert_chain.pem 
+
+7. Verify the certificate with CA
+
+ openssl verify -CAfile aps_cert_chain.pem apns_cert.pem
+
+8. Converting .pem to p12 file
+
+openssl pkcs12 -export -out apns.p12 -inkey private_key.pem -in certificate.pem
+
+
+9. Getting base64 data from.p12 file
+
+ openssl base64 -in certificate.p12 -out certificate_base64.txt
+
+10. Sign the Configuration profile
+
+openssl smime -sign -signer aps_cert.pem -inkey certificate_17.pem -certfile aps_cert_chain.pem -nodetach -outform der -in profile-uns.mobileconfig -out profile-sig.mobileconfig
+
