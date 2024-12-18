@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>PayloadContent</key>
+    <array>
+         <dict>
+            <key>IdentityCertificateUUID</key>
+            <string>A5387CAD-A5AF-41DE-B05A-CCC8C614A60B</string>
+            <key>ServerURL</key>
+            <string>https://192.168.0.188:5000/mdm</string>
+            <key>Topic</key>
+            <string>com.apple.mgmt.External.H5GZ7YMP42.com.sujanix.myapp</string>
+            <key>AccessRights</key>
+            <integer>8191</integer>
+            <key>ServerCapabilities</key>
+            <array>
+                <string>com.apple.mdm.per-user-connections</string>
+            </array>
+            <key>CheckInURL</key>
+            <string>https://192.168.0.188:5000/checkin</string>
+            <key>CheckOutWhenRemoved</key>
+            <true/>
+            <key>PromptUserToAllowBootstrapTokenForAuthentication</key>
+            <false/>
+            <key>PayloadIdentifier</key>
+            <string>com.example.mdm</string>
+            <key>PayloadType</key>
+            <string>com.apple.mdm</string>
+            <key>PayloadUUID</key>
+            <string>0ae4af50-590a-4478-b540-aa0a21da23f1</string>
+            <key>PayloadVersion</key>
+            <integer>1</integer>
+        </dict>
+        <dict>
+            <key>PayloadDescription</key>
+            <string>Configures passcode settings</string>
+            <key>PayloadDisplayName</key>
+            <string>Passcode</string>
+            <key>PayloadIdentifier</key>
+            <string>com.apple.mobiledevice.passwordpolicy.66398E5F-7C91-43C5-8B77-43DEE3C96F91</string>
+            <key>PayloadType</key>
+            <string>com.apple.mobiledevice.passwordpolicy</string>
+            <key>PayloadUUID</key>
+            <string>66398E5F-7C91-43C5-8B77-43DEE3C96F91</string>
+            <key>PayloadVersion</key>
+            <integer>1</integer>
+            <key>allowSimple</key>
+            <true/>
+            <key>forcePIN</key>
+            <true/>
+            <key>minLength</key>
+            <integer>5</integer>
+            <key>requireAlphanumeric</key>
+            <true/>
+        </dict>
+    </array>
+    <key>PayloadDescription</key>
+    <string>For MDM Enrollment</string>
+    <key>PayloadDisplayName</key>
+    <string>TestProfile</string>
+    <key>PayloadIdentifier</key>
+    <string>com.apple.mgmt.External.H5GZ7YMP42.com.sujanix.myapp</string>
+    <key>PayloadOrganization</key>
+    <string>Sujanix Private Limited</string>
+    <key>PayloadRemovalDisallowed</key>
+    <false/>
+    <key>PayloadType</key>
+    <string>Configuration</string>
+    <key>PayloadUUID</key>
+    <string>8910AF4B-872F-4AF1-82B1-501E779A06C6</string>
+    <key>PayloadVersion</key>
+    <integer>1</integer>
+</dict>
+</plist>
