@@ -1,0 +1,33 @@
+Commands for creating identity and ca certificates
+
+1. Create CA Key
+
+openssl genrsa -out cakey.key 2048
+
+2. Create cacert.crt file
+
+openssl req -new -x509 -days 365 -key cakey.key -out cacert.crt  
+
+3. Generate identity.key
+
+openssl genrsa -out identity.key 2048
+
+4. Generate CSR for identity
+
+openssl req -new -key identity.key -out identity.csr
+
+5. Genrate a Signed CA Certificate for identity.crt using cacert
+
+openssl x509 -req -days 365 -in identity.csr -CA cacert.crt -CAkey cakey.key -CAcreateserial -out identity.crt
+
+6. Genrate pkcs12 file using identity and cacert
+
+openssl pkcs12 -export -out identity.p12 -inkey identity.key -in identity.crt -certfile cacert.crt
+
+7. Convert p12 to base64 txt
+
+openssl base64 -in identity.p12 -out identity_base64.txt
+
+8 Generate the Signed Config Profile
+
+openssl smime -sign -signer apns_cert.pem -inkey certificate_17.pem -certfile aps_cert_chain.pem -nodetach -outform der -in profile-uns.mobileconfig -out profile-sig.mobileconfig

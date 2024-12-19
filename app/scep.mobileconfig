@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>PayloadContent</key>
+    <array>
+        <!-- SCEP Payload -->
+        <dict>
+            <key>PayloadType</key>
+            <string>com.apple.security.scep</string>
+            <key>PayloadVersion</key>
+            <integer>1</integer>
+            <key>PayloadIdentifier</key>
+            <string>com.yourorganization.scep</string>
+            <key>PayloadUUID</key>
+            <string>YOUR-UNIQUE-UUID-HERE-1</string>
+            <key>PayloadDisplayName</key>
+            <string>SCEP Certificate</string>
+            <key>ServerURL</key>
+            <string>https://your.server.url/scep</string>
+            <key>Subject</key>
+            <dict>
+                <key>CN</key>
+                <string>$DEVICE_NAME</string>
+                <key>O</key>
+                <string>YourOrganization</string>
+            </dict>
+            <key>KeySize</key>
+            <integer>2048</integer>
+            <key>KeyUsage</key>
+            <array>
+                <string>digitalSignature</string>
+                <string>keyEncipherment</string>
+            </array>
+            <key>ChallengeType</key>
+            <string>None</string>
+        </dict>
+    </array>
+    <!-- General Payload Information -->
+    <key>PayloadType</key>
+    <string>Configuration</string>
+    <key>PayloadVersion</key>
+    <integer>1</integer>
+    <key>PayloadIdentifier</key>
+    <string>com.yourorganization.configuration</string>
+    <key>PayloadUUID</key>
+    <string>YOUR-UNIQUE-UUID-HERE-2</string>
+    <key>PayloadDisplayName</key>
+    <string>MDM Configuration</string>
+</dict>
+</plist>
