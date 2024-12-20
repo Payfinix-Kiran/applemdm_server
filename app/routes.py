@@ -5,10 +5,16 @@ import requests
 import httpx
 import time
 import jwt
-from flask import request, Blueprint, jsonify, send_from_directory, send_file
+from flask import request, Blueprint, jsonify, make_response, send_file
 from plistlib import loads
 import plistlib
 import uuid
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.backends import default_backend
+from cryptography import x509
+from cryptography.hazmat.primitives.serialization import pkcs7
+from cryptography.hazmat.primitives.serialization import load_pem_private_key
+import datetime
 import os
 from base64 import b64encode
 import base64
@@ -260,13 +266,90 @@ def mdm_checkin():
 @main.route('/mdm/enroll', methods=['GET'])
 def enroll():
     try:
-        mobileconfig_path = "profile-sig.mobileconfig"
+        mobileconfig_path = "ngrok-sig.mobileconfig"
 
         return send_file(mobileconfig_path, as_attachment=True, mimetype="application/x-apple-aspen-config")
 
     except Exception as e:
         print(f"Error serving mobileconfig: {e}")
         return {"error": str(e)}, 500
+
+@main.route('/mdm/scep', methods=['GET', 'POST'])
+def scep():
+    operation = request.args.get('operation')
+    
+    if operation == 'GetCACert':
+        return provide_ca_cert()
+    elif operation == 'GetCACaps':
+        return provide_ca_caps()
+    elif operation == 'PKIOperation':
+        return handle_pki_operation()
+    else:
+        return make_response("Operation not supported", 400)
+
+def provide_ca_cert():
+    with open(os.getenv('CA_CERT_PATH', 'cacert.crt'), 'rb') as f:
+        ca_cert = f.read()
+    response = make_response(ca_cert)
+    response.headers['Content-Type'] = 'application/x-x509-ca-cert'
+    return response
+
+def provide_ca_caps():
+    capabilities = "POSTPKIOperation\nSHA-256\nAES\nDES3\n"
+    response = make_response(capabilities)
+    response.headers['Content-Type'] = 'text/plain'
+    return response
+
+def handle_pki_operation():
+    pki_message = request.data
+    try:
+        pkcs7_obj = pkcs7.load_der_pkcs7_signed_data(pki_message)
+        csr = None
+        for cert_request in pkcs7_obj.certificates:
+            csr = x509.load_der_x509_csr(cert_request.public_bytes(default_backend()))
+            break
+        if not csr:
+            return make_response("No CSR found in PKCS#7", 400)
+    except Exception as e:
+        return make_response("Invalid PKCS#7 message", 400)
+    
+    return sign_and_respond(csr)
+
+def sign_and_respond(csr):
+    ca_cert = x509.load_pem_x509_certificate(open(os.getenv('CA_CERT_PATH', 'cacert.crt'), 'rb').read())
+    ca_key = load_pem_private_key(open(os.getenv('CA_KEY_PATH', 'cakey.key'), 'rb').read(), password=None)
+
+    if csr.public_key().key_size < 2048:
+        return make_response("CSR validation failed: Key size too small", 400)
+
+    device_cert = (
+        x509.CertificateBuilder()
+        .subject_name(csr.subject)
+        .issuer_name(ca_cert.subject)
+        .public_key(csr.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(datetime.datetime.utcnow())
+        .not_valid_after(datetime.datetime.utcnow() + datetime.timedelta(days=365))
+        .add_extension(x509.BasicConstraints(ca=False, path_length=None), critical=True)
+        .sign(ca_key, hashes.SHA256())
+    )
+
+    device_cert_der = device_cert.public_bytes(encoding=x509.Encoding.DER)
+    return create_pkcs7_response(device_cert_der, ca_cert)
+
+def create_pkcs7_response(device_cert_der, ca_cert):
+    pkcs7_response = pkcs7.PKCS7SignatureBuilder() \
+        .add_certificate(x509.load_der_x509_certificate(device_cert_der)) \
+        .add_certificate(ca_cert) \
+        .sign(
+            private_key=None,
+            algorithm=hashes.SHA256(),
+            backend=default_backend()
+        )
+    response_data = pkcs7_response.public_bytes(encoding=pkcs7.Encoding.DER)
+    response = make_response(response_data)
+    response.headers['Content-Type'] = 'application/x-pki-message'
+    return response
 
 
 @main.route('/mdm/getjwt', methods=['GET'])

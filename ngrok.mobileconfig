@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+  <plist version="1.0">
+    <dict>
+      <key>PayloadContent</key>
+      <array>
+        <dict>
+          <key>PayloadContent</key>
+          <dict>
+            <key>Challenge</key>
+            <string>this is a challenge</string>
+            <key>Key Type</key>
+            <string>RSA</string>
+            <key>Key Usage</key>
+            <integer>5</integer>
+            <key>Keysize</key>
+            <integer>1024</integer>
+            <key>Name</key>
+            <string>mycompany</string>
+            <key>Retries</key>
+            <integer>3</integer>
+            <key>RetryDelay</key>
+            <integer>0</integer>
+            <key>Subject</key>
+            <array><array><array>
+              <string>CN</string>
+              <string>mycompany</string>
+            </array></array></array>
+            <key>URL</key>
+            <string>https://2a38-49-207-210-161.ngrok-free.app/mdm/scep</string>
+          </dict>
+          <key>PayloadDescription</key>
+          <string>Configures SCEP</string>
+          <key>PayloadDisplayName</key>
+          <string>SCEP (mycompany)</string>
+          <key>PayloadIdentifier</key>
+          <string>com.mycompany.mdm.scep1</string>
+          <key>PayloadOrganization</key>
+          <string></string>
+          <key>PayloadType</key>
+          <string>com.apple.security.scep</string>
+          <key>PayloadUUID</key>
+          <string>57225d3d-0758-4d23-8093-e4d8c9bbd47c</string>
+          <key>PayloadVersion</key>
+          <integer>1</integer>
+        </dict>
+        <dict>
+          <key>AccessRights</key>
+          <integer>3</integer>
+          <key>CheckInURL</key>
+          <string>https://2a38-49-207-210-161.ngrok-free.app/mdm/checkin</string>
+          <key>CheckOutWhenRemoved</key>
+          <false/>
+          <key>IdentityCertificateUUID</key>
+          <string>57225d3d-0758-4d23-8093-e4d8c9bbd47c</string>
+          <key>PayloadDescription</key>
+          <string>Configures MobileDeviceManagement.</string>
+          <key>PayloadIdentifier</key>
+          <string>com.mycompany.mdm.mdm2</string>
+          <key>PayloadOrganization</key>
+          <string></string>
+          <key>PayloadType</key>
+          <string>com.apple.mdm</string>
+          <key>PayloadUUID</key>
+          <string>ed0ae41d-1aa7-4721-9fe9-139c1072132c</string>
+          <key>PayloadVersion</key>
+          <integer>1</integer>
+          <key>ServerURL</key>
+          <string>https://2a38-49-207-210-161.ngrok-free.app/mdm/checkin</string>
+          <key>SignMessage</key>
+          <false/>
+          <key>Topic</key>
+          <string>com.apple.mgmt.mypushsubject</string>
+          <key>UseDevelopmentAPNS</key>
+          <true/>
+        </dict>
+      </array>
+      <key>PayloadDescription</key>
+      <string>Profile description.</string>
+      <key>PayloadDisplayName</key>
+      <string>Test Profile</string>
+      <key>PayloadIdentifier</key>
+      <string>com.mycompany.mdm</string>
+      <key>PayloadOrganization</key>
+      <string>mycompany</string>
+      <key>PayloadRemovalDisallowed</key>
+      <false/>
+      <key>PayloadType</key>
+      <string>Configuration</string>
+      <key>PayloadUUID</key>
+      <string>13321058-4037-478c-9b1e-ef6f810065cb</string>
+      <key>PayloadVersion</key>
+      <integer>1</integer>
+    </dict>
+  </plist>

@@ -130,6 +130,13 @@
 				<string>com.apple.mgmt.External.3CCD473D-541B-4651-973B-D32ED485EB85</string>
 				<key>AccessRights</key>
 				<integer>8191</integer>
+        <key>ServerCapabilities</key>
+            <dict>
+                <key>UserChannelSupport</key>
+                <true/>
+                <key>OtherCapability</key>
+                <false/>
+            </dict>
 				<key>SignMessage</key>
 				<true/>
 				<key>CheckOutWhenRemoved</key>
