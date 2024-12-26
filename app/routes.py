@@ -5,19 +5,14 @@ import requests
 import httpx
 import time
 import jwt
-from flask import request, Blueprint, jsonify, make_response, send_file
+from flask import request, Blueprint, jsonify, make_response, send_file, Response
 from plistlib import loads
 import plistlib
-import uuid
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.backends import default_backend
-from cryptography import x509
-from cryptography.hazmat.primitives.serialization import pkcs7
-from cryptography.hazmat.primitives.serialization import load_pem_private_key
-import datetime
+from scep import Client
 import os
 from base64 import b64encode
 import base64
+import OpenSSL
 
 main = Blueprint('main', __name__)
 
@@ -266,93 +261,124 @@ def mdm_checkin():
 @main.route('/mdm/enroll', methods=['GET'])
 def enroll():
     try:
-        mobileconfig_path = "ngrok-sig.mobileconfig"
+        mobileconfig_path = "profile-sig.mobileconfig"
 
         return send_file(mobileconfig_path, as_attachment=True, mimetype="application/x-apple-aspen-config")
 
     except Exception as e:
         print(f"Error serving mobileconfig: {e}")
         return {"error": str(e)}, 500
+    
+CA_CERT_FILE = 'ca_cert.pem'
+CA_KEY_FILE = 'ca_key.pem'
+
+ca_cert = OpenSSL.crypto.load_certificate(OpenSSL.crypto.FILETYPE_PEM, open(CA_CERT_FILE).read())
+ca_key = OpenSSL.crypto.load_privatekey(OpenSSL.crypto.FILETYPE_PEM, open(CA_KEY_FILE).read())
+
 
 @main.route('/mdm/scep', methods=['GET', 'POST'])
 def scep():
     operation = request.args.get('operation')
-    
+
     if operation == 'GetCACert':
-        return provide_ca_cert()
-    elif operation == 'GetCACaps':
-        return provide_ca_caps()
+        # Serve the CA certificate
+        with open(CA_CERT_FILE, 'rb') as cert_file:
+            ca_cert_data = cert_file.read()
+        return Response(ca_cert_data, content_type='application/x-x509-ca-cert')
+
     elif operation == 'PKIOperation':
-        return handle_pki_operation()
+        # Process PKIOperation (e.g., CSR handling)
+        csr_data = request.data
+        try:
+            # Load the CSR
+            csr = OpenSSL.crypto.load_certificate_request(OpenSSL.crypto.FILETYPE_ASN1, csr_data)
+
+            # Create a new certificate
+            cert = OpenSSL.crypto.X509()
+            cert.set_subject(csr.get_subject())
+            cert.set_issuer(ca_cert.get_subject())
+            cert.set_pubkey(csr.get_pubkey())
+            cert.set_serial_number(1000)  # Increment for each certificate
+            cert.gmtime_adj_notBefore(0)
+            cert.gmtime_adj_notAfter(31536000)  # Valid for 1 year
+            cert.sign(ca_key, 'sha256')
+
+            # Return the certificate
+            cert_data = OpenSSL.crypto.dump_certificate(OpenSSL.crypto.FILETYPE_ASN1, cert)
+            return Response(cert_data, content_type='application/x-x509-user-cert')
+        except Exception as e:
+            return jsonify({'error': str(e)}), 400
+
+    elif operation == 'GetCRL':
+        # Serve the CRL (if implemented)
+        return Response("CRL not implemented yet.", content_type='text/plain')
+
     else:
-        return make_response("Operation not supported", 400)
+        return jsonify({'error': 'Invalid operation'}), 400
 
-def provide_ca_cert():
-    with open(os.getenv('CA_CERT_PATH', 'cacert.crt'), 'rb') as f:
-        ca_cert = f.read()
-    response = make_response(ca_cert)
-    response.headers['Content-Type'] = 'application/x-x509-ca-cert'
-    return response
-
-def provide_ca_caps():
-    capabilities = "POSTPKIOperation\nSHA-256\nAES\nDES3\n"
-    response = make_response(capabilities)
-    response.headers['Content-Type'] = 'text/plain'
-    return response
-
-def handle_pki_operation():
-    pki_message = request.data
-    try:
-        pkcs7_obj = pkcs7.load_der_pkcs7_signed_data(pki_message)
-        csr = None
-        for cert_request in pkcs7_obj.certificates:
-            csr = x509.load_der_x509_csr(cert_request.public_bytes(default_backend()))
-            break
-        if not csr:
-            return make_response("No CSR found in PKCS#7", 400)
-    except Exception as e:
-        return make_response("Invalid PKCS#7 message", 400)
+# @main.route('/mdm/scep', methods=['GET', 'POST'])
+# def scep_mdm():
+#     operation = request.args.get('operation')
     
-    return sign_and_respond(csr)
+#     client = Client.Client(
+#         'https://cf49-49-207-210-161.ngrok-free.app/scep'
+#     )
+    
+#     if operation == 'GetCACert':
+#         try:
+#             ca_certificate = client.rollover_certificate()
+#             return Response(ca_certificate, content_type='application/x-x509-ca-cert')
+#         except Exception as e:
+#             return jsonify({'error': str(e)}), 500
+    
+#     elif operation == 'PKIOperation':
+#         # Handle PKIOperation (e.g., Enrollment)
+#         try:
+#             csr = request.data  # CSR data sent by the client
+#             identity, identity_private_key = Client.SigningRequest.generate_self_signed(
+#                 cn='MDM-SCEP',
+#                 key_usage={'digital_signature', 'key_encipherment'}
+#             )
+#             response = client.enrol(
+#                 csr=csr,
+#                 identity=identity,
+#                 identity_private_key=identity_private_key,
+#                 identifier=None
+#             )
+#             if response.status == Client.PKIStatus.FAILURE:
+#                 return jsonify({'error': response.fail_info}), 400
+#             elif response.status == Client.PKIStatus.PENDING:
+#                 return jsonify({'transaction_id': response.transaction_id}), 202
+#             else:
+#                 return Response(response.certificate, content_type='application/x-x509-user-cert')
+#         except Exception as e:
+#             return jsonify({'error': str(e)}), 500
+    
+#     elif operation == 'GetCRL':
+#         # Handle GetCRL operation
+#         try:
+#             serial_number = request.args.get('serial_number')
+#             identity, identity_private_key = Client.SigningRequest.generate_self_signed(
+#                 cn='MDM-SCEP',
+#                 key_usage={'digital_signature', 'key_encipherment'}
+#             )
+#             response = client.get_crl(
+#                 identity=identity,
+#                 identity_private_key=identity_private_key,
+#                 serial_number=int(serial_number)
+#             )
+#             if response.status == Client.PKIStatus.FAILURE:
+#                 return jsonify({'error': response.fail_info}), 400
+#             else:
+#                 return Response(response.crl, content_type='application/pkix-crl')
+#         except Exception as e:
+#             return jsonify({'error': str(e)}), 500
+    
+#     else:
+#         return jsonify({'error': 'Invalid operation'}), 400
 
-def sign_and_respond(csr):
-    ca_cert = x509.load_pem_x509_certificate(open(os.getenv('CA_CERT_PATH', 'cacert.crt'), 'rb').read())
-    ca_key = load_pem_private_key(open(os.getenv('CA_KEY_PATH', 'cakey.key'), 'rb').read(), password=None)
 
-    if csr.public_key().key_size < 2048:
-        return make_response("CSR validation failed: Key size too small", 400)
-
-    device_cert = (
-        x509.CertificateBuilder()
-        .subject_name(csr.subject)
-        .issuer_name(ca_cert.subject)
-        .public_key(csr.public_key())
-        .serial_number(x509.random_serial_number())
-        .not_valid_before(datetime.datetime.utcnow())
-        .not_valid_after(datetime.datetime.utcnow() + datetime.timedelta(days=365))
-        .add_extension(x509.BasicConstraints(ca=False, path_length=None), critical=True)
-        .sign(ca_key, hashes.SHA256())
-    )
-
-    device_cert_der = device_cert.public_bytes(encoding=x509.Encoding.DER)
-    return create_pkcs7_response(device_cert_der, ca_cert)
-
-def create_pkcs7_response(device_cert_der, ca_cert):
-    pkcs7_response = pkcs7.PKCS7SignatureBuilder() \
-        .add_certificate(x509.load_der_x509_certificate(device_cert_der)) \
-        .add_certificate(ca_cert) \
-        .sign(
-            private_key=None,
-            algorithm=hashes.SHA256(),
-            backend=default_backend()
-        )
-    response_data = pkcs7_response.public_bytes(encoding=pkcs7.Encoding.DER)
-    response = make_response(response_data)
-    response.headers['Content-Type'] = 'application/x-pki-message'
-    return response
-
-
-@main.route('/mdm/getjwt', methods=['GET'])
+# @main.route('/mdm/getjwt', methods=['GET'])
 def getjwt():
 
     team_id = 'H5GZ7YMP42'
@@ -385,10 +411,8 @@ def send_notification():
 
     url = "https://api.sandbox.push.apple.com/3/device/89782f6151b882f680df1de9b9a3d259f6a895820d586abf26b8312f8f2adf53"
 
-    # Your JWT token that you generated
-    jwt_token = "eyJ0eXAiOiJKV1QiLCJhbGciOiJFUzI1NiIsImtpZCI6IlFNMzY4Sk45RDYifQ.eyJpc3MiOiJINUdaN1lNUDQyIiwiaWF0IjoxNzMyNjk5OTQ1fQ.v-rXQL2JeB9BWUtUd6LnU57nlM7q-3DDOVm0HyhD0IX1ARTj4ucxtZ65AaVC5Ax6SQ_wESnc05E4rhJP7kYNJA"
+    jwt_token = getjwt()
 
-    # The push notification payload
     payload = {
         "aps": {
             "alert": "Hello from CruxAppleMDM!",
@@ -397,21 +421,18 @@ def send_notification():
         }
     }
 
-    # Set up the headers for the request
     headers = {
         "Authorization": f"Bearer {jwt_token}",
         "Content-Type": "application/json",
-        "apns-topic": "com.sujanix.cruxapplemdm"  # Your app's bundle identifier
+        "apns-topic": "com.sujanix.cruxapplemdm"
     }
-    # Use httpx to make the request with HTTP/2 support
     with httpx.Client(http2=True) as client:
         response = client.post(url, data=json.dumps(payload), headers=headers)
         print(response.content)
-        # Check the response from APNs
+
         if response.status_code == 200:
             print("Notification sent successfully!")
             return jsonify({"message": "Notification sent successfully!"}), 200
         else:
-            print(f"Failed to send notification: {
-                  response.status_code} - {response.text}")
+            print(f"Failed to send notification: {response.status_code} - {response.text}")
             return jsonify({"error": f"Failed to send notification: {response.status_code} - {response.text}"}), 400
