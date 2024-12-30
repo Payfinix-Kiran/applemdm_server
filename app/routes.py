@@ -12,7 +12,30 @@ from scep import Client
 import os
 from base64 import b64encode
 import base64
+from enum import Enum
 import OpenSSL
+from cryptography import x509
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.backends import default_backend
+from cryptography.x509 import load_der_x509_csr,load_pem_x509_csr
+from cryptography.x509.oid import NameOID
+import datetime
+from cryptography.hazmat.primitives.serialization import Encoding
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives.hashes import SHA256
+# from asn1crypto import x509, pem
+
+class PKIStatus(Enum):
+    """The SCEP PKI Status
+
+    Decimal value as printableString
+
+    See Also:
+        - SCEP RFC Section 3.2.1.3.
+    """
+    SUCCESS = '0'
+    FAILURE = '2'
+    PENDING = '3'
 
 main = Blueprint('main', __name__)
 
@@ -261,7 +284,7 @@ def mdm_checkin():
 @main.route('/mdm/enroll', methods=['GET'])
 def enroll():
     try:
-        mobileconfig_path = "profile-sig.mobileconfig"
+        mobileconfig_path = "scep-sig.mobileconfig"
 
         return send_file(mobileconfig_path, as_attachment=True, mimetype="application/x-apple-aspen-config")
 
@@ -269,114 +292,140 @@ def enroll():
         print(f"Error serving mobileconfig: {e}")
         return {"error": str(e)}, 500
     
-CA_CERT_FILE = 'ca_cert.pem'
+CA_CERT_FILE = 'cacert.der'
 CA_KEY_FILE = 'ca_key.pem'
 
-ca_cert = OpenSSL.crypto.load_certificate(OpenSSL.crypto.FILETYPE_PEM, open(CA_CERT_FILE).read())
+# Load the certificate in DER format
+with open(CA_CERT_FILE, 'rb') as cert_file:
+    ca_cert_data = cert_file.read()
+
+# ca_cert = OpenSSL.crypto.load_certificate(OpenSSL.crypto.FILETYPE_ASN1, ca_cert_data)
+
+# Load the private key (assuming it's in PEM format)
 ca_key = OpenSSL.crypto.load_privatekey(OpenSSL.crypto.FILETYPE_PEM, open(CA_KEY_FILE).read())
 
 
-@main.route('/mdm/scep', methods=['GET', 'POST'])
+@main.route('/scep', methods=['GET', 'POST'])
 def scep():
     operation = request.args.get('operation')
 
     if operation == 'GetCACert':
-        # Serve the CA certificate
         with open(CA_CERT_FILE, 'rb') as cert_file:
             ca_cert_data = cert_file.read()
-        return Response(ca_cert_data, content_type='application/x-x509-ca-cert')
+            print(type(ca_cert_data)) 
+
+        try:
+            
+            # try:
+            #     cert = x509.load_pem_x509_certificate(ca_cert_data, backend=default_backend())
+            #     print("Loaded PEM certificate.")
+
+            #     cert_data = cert.public_bytes(
+            #     encoding=serialization.Encoding.PEM
+            # )
+            # except ValueError:
+            #     # If PEM fails, try loading as DER
+            #     # cert_data = x509.load_der_x509_certificate(ca_cert_data, backend=default_backend())
+            #     print("Loaded DER certificate.")
+            
+
+            # Return the certificate as a Response in PEM format
+            return Response(ca_cert_data, content_type='application/x-x509-ca-cert')
+
+        except Exception as e:
+            print(f"Error loading certificate: {e}")
+            return 'Error processing certificate', 500
+    
+    elif operation == 'GetCACaps':
+        return provide_ca_caps()
 
     elif operation == 'PKIOperation':
-        # Process PKIOperation (e.g., CSR handling)
         csr_data = request.data
+        print("CSR Data:", csr_data.hex()[:100])
+        with open('csr.der', 'wb') as f:
+            f.write(csr_data)
         try:
-            # Load the CSR
-            csr = OpenSSL.crypto.load_certificate_request(OpenSSL.crypto.FILETYPE_ASN1, csr_data)
-
-            # Create a new certificate
-            cert = OpenSSL.crypto.X509()
-            cert.set_subject(csr.get_subject())
-            cert.set_issuer(ca_cert.get_subject())
-            cert.set_pubkey(csr.get_pubkey())
-            cert.set_serial_number(1000)  # Increment for each certificate
-            cert.gmtime_adj_notBefore(0)
-            cert.gmtime_adj_notAfter(31536000)  # Valid for 1 year
-            cert.sign(ca_key, 'sha256')
-
-            # Return the certificate
-            cert_data = OpenSSL.crypto.dump_certificate(OpenSSL.crypto.FILETYPE_ASN1, cert)
-            return Response(cert_data, content_type='application/x-x509-user-cert')
+            return Response(csr_data, content_type='application/pkcs7-mime', status=200)
         except Exception as e:
-            return jsonify({'error': str(e)}), 400
+            print(f"Error loading certificate: {e}")
+            return 'Error processing certificate', 500
 
     elif operation == 'GetCRL':
-        # Serve the CRL (if implemented)
-        return Response("CRL not implemented yet.", content_type='text/plain')
+        serial_number = request.args.get('serial_number')
+        return Response(serial_number, content_type='text/plain')
 
     else:
         return jsonify({'error': 'Invalid operation'}), 400
 
-# @main.route('/mdm/scep', methods=['GET', 'POST'])
-# def scep_mdm():
-#     operation = request.args.get('operation')
+@main.route('/mdm/scep', methods=['GET', 'POST'])
+def scep_mdm():
+    operation = request.args.get('operation')
     
-#     client = Client.Client(
-#         'https://cf49-49-207-210-161.ngrok-free.app/scep'
-#     )
+    if operation == 'GetCACert':
+        try:
+            client = Client.Client(
+            'https://cf49-49-207-210-161.ngrok-free.app/scep'
+        )
+            ca_certificate = client.rollover_certificate()
+            print(ca_certificate)
+            return Response(ca_certificate, content_type='application/x-x509-ca-cert')
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+        
+    elif operation == 'GetCACaps':
+        return provide_ca_caps()
     
-#     if operation == 'GetCACert':
-#         try:
-#             ca_certificate = client.rollover_certificate()
-#             return Response(ca_certificate, content_type='application/x-x509-ca-cert')
-#         except Exception as e:
-#             return jsonify({'error': str(e)}), 500
+    elif operation == 'PKIOperation':
+        # Handle PKIOperation (e.g., Enrollment)
+        try:
+            csr = request.data  # CSR data sent by the client
+            identity, identity_private_key = Client.SigningRequest.generate_self_signed(
+                cn='MDM-SCEP',
+                key_usage={'digital_signature', 'key_encipherment'}
+            )
+            response = client.enrol(
+                csr=csr,
+                identity=identity,
+                identity_private_key=identity_private_key,
+                identifier=None
+            )
+            if response.status == Client.PKIStatus.FAILURE:
+                return jsonify({'error': response.fail_info}), 400
+            elif response.status == Client.PKIStatus.PENDING:
+                return jsonify({'transaction_id': response.transaction_id}), 202
+            else:
+                return Response(response.certificate, content_type='application/x-x509-user-cert')
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
     
-#     elif operation == 'PKIOperation':
-#         # Handle PKIOperation (e.g., Enrollment)
-#         try:
-#             csr = request.data  # CSR data sent by the client
-#             identity, identity_private_key = Client.SigningRequest.generate_self_signed(
-#                 cn='MDM-SCEP',
-#                 key_usage={'digital_signature', 'key_encipherment'}
-#             )
-#             response = client.enrol(
-#                 csr=csr,
-#                 identity=identity,
-#                 identity_private_key=identity_private_key,
-#                 identifier=None
-#             )
-#             if response.status == Client.PKIStatus.FAILURE:
-#                 return jsonify({'error': response.fail_info}), 400
-#             elif response.status == Client.PKIStatus.PENDING:
-#                 return jsonify({'transaction_id': response.transaction_id}), 202
-#             else:
-#                 return Response(response.certificate, content_type='application/x-x509-user-cert')
-#         except Exception as e:
-#             return jsonify({'error': str(e)}), 500
+    elif operation == 'GetCRL':
+        # Handle GetCRL operation
+        try:
+            serial_number = request.args.get('serial_number')
+            identity, identity_private_key = Client.SigningRequest.generate_self_signed(
+                cn='MDM-SCEP',
+                key_usage={'digital_signature', 'key_encipherment'}
+            )
+            response = client.get_crl(
+                identity=identity,
+                identity_private_key=identity_private_key,
+                serial_number=int(serial_number)
+            )
+            if response.status == Client.PKIStatus.FAILURE:
+                return jsonify({'error': response.fail_info}), 400
+            else:
+                return Response(response.crl, content_type='application/pkix-crl')
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
     
-#     elif operation == 'GetCRL':
-#         # Handle GetCRL operation
-#         try:
-#             serial_number = request.args.get('serial_number')
-#             identity, identity_private_key = Client.SigningRequest.generate_self_signed(
-#                 cn='MDM-SCEP',
-#                 key_usage={'digital_signature', 'key_encipherment'}
-#             )
-#             response = client.get_crl(
-#                 identity=identity,
-#                 identity_private_key=identity_private_key,
-#                 serial_number=int(serial_number)
-#             )
-#             if response.status == Client.PKIStatus.FAILURE:
-#                 return jsonify({'error': response.fail_info}), 400
-#             else:
-#                 return Response(response.crl, content_type='application/pkix-crl')
-#         except Exception as e:
-#             return jsonify({'error': str(e)}), 500
-    
-#     else:
-#         return jsonify({'error': 'Invalid operation'}), 400
+    else:
+        return jsonify({'error': 'Invalid operation'}), 400
 
+def provide_ca_caps():
+    capabilities = "POSTPKIOperation\nSHA-256\nAES\nDES3\n"
+    response = make_response(capabilities)
+    response.headers['Content-Type'] = 'text/plain'
+    return response
 
 # @main.route('/mdm/getjwt', methods=['GET'])
 def getjwt():
@@ -436,3 +485,93 @@ def send_notification():
         else:
             print(f"Failed to send notification: {response.status_code} - {response.text}")
             return jsonify({"error": f"Failed to send notification: {response.status_code} - {response.text}"}), 400
+
+@main.route('/generate_cer', methods=['GET'])
+def generate_cer():
+    identity, identity_private_key = Client.SigningRequest.generate_self_signed(
+        cn='PyScep-test',
+        key_usage={'digital_signature', 'key_encipherment'}
+    )
+
+    cert_pem = identity.to_pem()
+    private_key_pem = identity_private_key.to_pem()
+
+    cert_file_path = 'scep_cer.pem'
+    private_key_file_path = 'scep_private_key.pem'
+
+
+    with open(cert_file_path, 'wb') as cert_file:
+        cert_file.write(cert_pem)
+
+    with open(private_key_file_path, 'wb') as private_key_file:
+        private_key_file.write(private_key_pem)
+
+    return f"Certificate and Private Key saved to {cert_file_path} and {private_key_file_path}"
+
+@main.route('/generate_csr', methods=['GET'])
+def generate_csr():
+    csr, private_key = Client.SigningRequest.generate_csr(
+    cn='PyScep-test', 
+    key_usage={'digital_signature', 'key_encipherment'}, 
+    password='Sujanix#123'
+)
+
+    csr_pem = csr.to_pem()
+    private_key_pem = private_key.to_pem()
+
+    csr_file_path = 'scep_csr.pem'
+    private_key_file_path = 'scep_key.pem'
+
+    with open(csr_file_path, 'wb') as csr_file:
+        csr_file.write(csr_pem)
+
+    with open(private_key_file_path, 'wb') as private_key_file:
+        private_key_file.write(private_key_pem)
+
+    return f"CSR and Private Key saved to {csr_file_path} and {private_key_file_path}"
+
+@main.route('/enroll_server', methods=['GET'])
+def enroll_server():
+    try:
+        # Create the client for the SCEP server
+        client = Client.Client(
+            'https://cf49-49-207-210-161.ngrok-free.app/scep'
+        )
+
+        # Generate CSR and private key
+        csr, private_key = Client.SigningRequest.generate_csr(
+            cn='*.ngrok-free.app', 
+            key_usage={'digital_signature', 'key_encipherment'}, 
+            password='Sujanix#123'
+        )
+
+        # Generate identity
+        identity, identity_private_key = Client.SigningRequest.generate_self_signed(
+            cn='*.ngrok-free.app',
+            key_usage={'digital_signature', 'key_encipherment'}
+        )
+
+        identifier = 'ngrokSCEP'
+
+        # Perform enrollment
+        res = client.enrol(
+            csr=csr,
+            identity=identity,
+            identity_private_key=identity_private_key,
+            identifier=identifier
+        )
+
+        print(res)
+
+        # Handle response
+        if res.status == PKIStatus.FAILURE:
+            return f"Enrollment failed: {res.fail_info}", 400
+        elif res.status == PKIStatus.PENDING:
+            return f"Enrollment pending. Transaction ID: {res.transaction_id}", 202
+        else:
+            return f"Enrollment successful! Certificate: {res.certificate}", 200
+
+    except requests.exceptions.SSLError as ssl_error:
+        return f"SSL Error: {ssl_error}", 500
+    except Exception as e:
+        return f"Error: {e}", 500

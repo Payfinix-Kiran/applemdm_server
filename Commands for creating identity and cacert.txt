@@ -2,23 +2,23 @@ Commands for creating identity and ca certificates
 
 1. Create CA Key
 
-openssl genrsa -out cakey.key 2048
+openssl genrsa -out cakey.key 2048 -config "C:\Program Files\OpenSSL-Win64\bin\cnf\openssl.cnf"
 
 2. Create cacert.crt file
 
-openssl req -new -x509 -days 365 -key cakey.key -out cacert.crt  
+openssl req -new -x509 -days 365 -key cakey.key -out cacert.crt -config "C:\Program Files\OpenSSL-Win64\bin\cnf\openssl.cnf"
 
 3. Generate identity.key
 
-openssl genrsa -out identity.key 2048
+openssl genrsa -out identity.key 2048 -config "C:\Program Files\OpenSSL-Win64\bin\cnf\openssl.cnf"
 
 4. Generate CSR for identity
 
-openssl req -new -key identity.key -out identity.csr
+openssl req -new -key identity.key -out identity.csr -config "C:\Program Files\OpenSSL-Win64\bin\cnf\openssl.cnf"
 
 5. Genrate a Signed CA Certificate for identity.crt using cacert
 
-openssl x509 -req -days 365 -in identity.csr -CA cacert.crt -CAkey cakey.key -CAcreateserial -out identity.crt
+openssl x509 -req -days 365 -in identity.csr -CA cacert.crt -CAkey cakey.key -CAcreateserial -out identity.crt -config "C:\Program Files\OpenSSL-Win64\bin\cnf\openssl.cnf"
 
 6. Genrate pkcs12 file using identity and cacert
 
