@@ -17,7 +17,6 @@ openssl req -new -key server.key -out server.csr \
 
 openssl x509 -req -days 365 -in server.csr -signkey server.key -out server.crt
 
-
 5. Getting output for pem format file
 
 openssl x509 -in intermediate_cert.pem -text -noout
@@ -33,7 +32,6 @@ Get-Content AppleWWDRCAG4.pem, AppleIncRootCertificate.pem | Set-Content aps_cer
 8. Converting .pem to p12 file
 
 openssl pkcs12 -export -out apns.p12 -inkey private_key.pem -in certificate.pem
-
 
 9. Getting base64 data from.p12 file
 

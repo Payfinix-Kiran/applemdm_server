@@ -14,8 +14,9 @@ from base64 import b64encode
 import base64
 from enum import Enum
 import OpenSSL
+from datetime import timedelta
 from cryptography import x509
-from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.backends import default_backend
 from cryptography.x509 import load_der_x509_csr,load_pem_x509_csr
 from cryptography.x509.oid import NameOID
@@ -23,6 +24,8 @@ import datetime
 from cryptography.hazmat.primitives.serialization import Encoding
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives.hashes import SHA256
+import binascii
+
 # from asn1crypto import x509, pem
 
 class PKIStatus(Enum):
@@ -293,7 +296,7 @@ def enroll():
         return {"error": str(e)}, 500
     
 CA_CERT_FILE = 'cacert.der'
-CA_KEY_FILE = 'ca_key.pem'
+CA_KEY_FILE = 'cakey.key'
 
 # Load the certificate in DER format
 with open(CA_CERT_FILE, 'rb') as cert_file:
@@ -340,16 +343,83 @@ def scep():
         return provide_ca_caps()
 
     elif operation == 'PKIOperation':
-        csr_data = request.data
-        print("CSR Data:", csr_data.hex()[:100])
-        with open('csr.der', 'wb') as f:
-            f.write(csr_data)
-        try:
-            return Response(csr_data, content_type='application/pkcs7-mime', status=200)
-        except Exception as e:
-            print(f"Error loading certificate: {e}")
-            return 'Error processing certificate', 500
+            csr_data = request.data
+            print("Received CSR Data:", csr_data.hex()[:100])
+            print("CSR Hex Dump:", csr_data.hex())
 
+            # cert = x509.load_der_x509_certificate(csr_data, default_backend())
+            # print(cert.subject)
+
+            # print("CSR saved as 'decoded_csr.pem'")
+
+            # try:
+            #     try:
+            #         csr = x509.load_der_x509_csr(csr_data)
+            #         print("Loaded CSR as DER format.")
+            #     except ValueError:
+            #         # If DER fails, try loading as PEM
+            #         print("Attempting to load CSR as PEM...")
+            #         csr_pem = csr_data.decode('utf-8')
+            #         csr = x509.load_pem_x509_csr(csr_pem.encode())
+            #         print("Loaded CSR as PEM format.")
+
+            #     # Verify CSR signature
+            #     if not csr.is_signature_valid:
+            #         return 'Invalid CSR signature', 400
+
+            #     # Generate a CA private key (use your existing CA private key if available)
+            #     ca_private_key = rsa.generate_private_key(
+            #         public_exponent=65537,
+            #         key_size=2048
+            #     )
+
+            #     # Generate the CA certificate (use your existing CA certificate if available)
+            #     ca_subject = x509.Name([
+            #         x509.NameAttribute(NameOID.COUNTRY_NAME, "US"),
+            #         x509.NameAttribute(NameOID.STATE_OR_PROVINCE_NAME, "California"),
+            #         x509.NameAttribute(NameOID.LOCALITY_NAME, "San Francisco"),
+            #         x509.NameAttribute(NameOID.ORGANIZATION_NAME, "My CA"),
+            #         x509.NameAttribute(NameOID.COMMON_NAME, "myca.example.com"),
+            #     ])
+            #     ca_certificate = (
+            #         x509.CertificateBuilder()
+            #         .subject_name(ca_subject)
+            #         .issuer_name(ca_subject)
+            #         .public_key(ca_private_key.public_key())
+            #         .serial_number(x509.random_serial_number())
+            #         .not_valid_before(datetime.utcnow())
+            #         .not_valid_after(datetime.utcnow() + timedelta(days=365))
+            #         .add_extension(
+            #             x509.BasicConstraints(ca=True, path_length=None), critical=True,
+            #         )
+            #         .sign(private_key=ca_private_key, algorithm=hashes.SHA256())
+            #     )
+
+            #     # Sign the CSR to create a certificate
+            #     signed_certificate = (
+            #         x509.CertificateBuilder()
+            #         .subject_name(csr.subject)
+            #         .issuer_name(ca_certificate.subject)
+            #         .public_key(csr.public_key())
+            #         .serial_number(x509.random_serial_number())
+            #         .not_valid_before(datetime.utcnow())
+            #         .not_valid_after(datetime.utcnow() + timedelta(days=365))  # 1 year validity
+            #         .add_extension(
+            #             x509.BasicConstraints(ca=False, path_length=None), critical=True,
+            #         )
+            #         .sign(private_key=ca_private_key, algorithm=hashes.SHA256())
+            #     )
+
+            #     # Serialize the signed certificate to DER format
+            #     signed_cert_der = signed_certificate.public_bytes(encoding=serialization.Encoding.DER)
+
+            #     # Return the signed certificate
+            #     return Response(signed_cert_der, content_type='application/x-pki-message', status=200)
+
+            # except Exception as e:
+            #     print(f"Error processing CSR: {e}")
+            #     return 'Error processing certificate', 500
+            return Response(csr_data, content_type='application/x-pki-message', status=200)
     elif operation == 'GetCRL':
         serial_number = request.args.get('serial_number')
         return Response(serial_number, content_type='text/plain')
@@ -514,7 +584,8 @@ def generate_csr():
     cn='PyScep-test', 
     key_usage={'digital_signature', 'key_encipherment'}, 
     password='Sujanix#123'
-)
+    
+    )
 
     csr_pem = csr.to_pem()
     private_key_pem = private_key.to_pem()
@@ -535,7 +606,7 @@ def enroll_server():
     try:
         # Create the client for the SCEP server
         client = Client.Client(
-            'https://cf49-49-207-210-161.ngrok-free.app/scep'
+            'https://0e65-223-196-193-121.ngrok-free.app/scep'
         )
 
         # Generate CSR and private key
@@ -552,7 +623,7 @@ def enroll_server():
         )
 
         identifier = 'ngrokSCEP'
-
+        
         # Perform enrollment
         res = client.enrol(
             csr=csr,
@@ -575,3 +646,9 @@ def enroll_server():
         return f"SSL Error: {ssl_error}", 500
     except Exception as e:
         return f"Error: {e}", 500
+
+# @main.route('/scep_enroll', methods=['GET'])
+# def scep_enroll(self):
+
+#     try:
+        

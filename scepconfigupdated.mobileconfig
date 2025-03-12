@@ -7,7 +7,6 @@
 		<dict>
 			<key>PayloadContent</key>
 			<dict>
-				
 				<key>Challenge</key>
 				<string>Sujanix#123</string>
 				<key>Key Type</key>

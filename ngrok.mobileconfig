@@ -27,7 +27,7 @@
               <string>mycompany</string>
             </array></array></array>
             <key>URL</key>
-            <string>https://2a38-49-207-210-161.ngrok-free.app/mdm/scep</string>
+            <string>https://192.168.0.105:5000/mdm/scep</string>
           </dict>
           <key>PayloadDescription</key>
           <string>Configures SCEP</string>
@@ -48,7 +48,7 @@
           <key>AccessRights</key>
           <integer>3</integer>
           <key>CheckInURL</key>
-          <string>https://2a38-49-207-210-161.ngrok-free.app/mdm/checkin</string>
+          <string>https://192.168.0.105:5000/mdm/checkin</string>
           <key>CheckOutWhenRemoved</key>
           <false/>
           <key>IdentityCertificateUUID</key>
@@ -66,7 +66,7 @@
           <key>PayloadVersion</key>
           <integer>1</integer>
           <key>ServerURL</key>
-          <string>https://2a38-49-207-210-161.ngrok-free.app/mdm/checkin</string>
+          <string>https://192.168.0.105:5000/mdm/checkin</string>
           <key>SignMessage</key>
           <false/>
           <key>Topic</key>

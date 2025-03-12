@@ -1,4 +1,4 @@
-Commands for creating identity and ca certificates
+Commands for creating identity and ca certificates :
 
 1. Create CA Key
 
@@ -28,6 +28,6 @@ openssl pkcs12 -export -out identity.p12 -inkey identity.key -in identity.crt -c
 
 openssl base64 -in identity.p12 -out identity_base64.txt
 
-8 Generate the Signed Config Profile
+8. Generate the Signed Config Profile
 
 openssl smime -sign -signer apns_cert.pem -inkey certificate_17.pem -certfile aps_cert_chain.pem -nodetach -outform der -in profile-uns.mobileconfig -out profile-sig.mobileconfig
